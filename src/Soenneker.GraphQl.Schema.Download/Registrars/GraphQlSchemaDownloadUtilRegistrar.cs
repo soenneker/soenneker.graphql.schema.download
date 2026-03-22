@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Soenneker.GraphQl.Schema.Download.Abstract;
+using Soenneker.Utils.HttpClientCache.Registrar;
 
 namespace Soenneker.GraphQl.Schema.Download.Registrars;
 
@@ -14,7 +15,8 @@ public static class GraphQlSchemaDownloadUtilRegistrar
     /// </summary>
     public static IServiceCollection AddGraphQlSchemaDownloadUtilAsSingleton(this IServiceCollection services)
     {
-        services.TryAddSingleton<IGraphQlSchemaDownloadUtil, GraphQlSchemaDownloadUtil>();
+        services.AddHttpClientCacheAsSingleton()
+                .TryAddSingleton<IGraphQlSchemaDownloadUtil, GraphQlSchemaDownloadUtil>();
 
         return services;
     }
@@ -24,7 +26,8 @@ public static class GraphQlSchemaDownloadUtilRegistrar
     /// </summary>
     public static IServiceCollection AddGraphQlSchemaDownloadUtilAsScoped(this IServiceCollection services)
     {
-        services.TryAddScoped<IGraphQlSchemaDownloadUtil, GraphQlSchemaDownloadUtil>();
+        services.AddHttpClientCacheAsSingleton()
+                .TryAddScoped<IGraphQlSchemaDownloadUtil, GraphQlSchemaDownloadUtil>();
 
         return services;
     }

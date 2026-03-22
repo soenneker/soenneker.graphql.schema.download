@@ -4,26 +4,35 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Soenneker.Extensions.ValueTask;
 using Soenneker.GraphQl.Schema.Download.Abstract;
+using Soenneker.Utils.HttpClientCache.Abstract;
+using Soenneker.Extensions.String;
+using Soenneker.Extensions.Task;
+using Soenneker.GraphQl.Schema.Download.Dtos;
 
 namespace Soenneker.GraphQl.Schema.Download;
 
 /// <inheritdoc cref="IGraphQlSchemaDownloadUtil"/>
 public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
 {
-    public GraphQlSchemaDownloadUtil()
+    private readonly IHttpClientCache _httpClientCache;
+
+    public GraphQlSchemaDownloadUtil(IHttpClientCache httpClientCache)
     {
+        _httpClientCache = httpClientCache;
     }
 
-    public ValueTask<string> Download(string endpoint, IReadOnlyDictionary<string, string>? headers = null, string? bearerToken = null,
+    public async ValueTask<string> Download(string endpoint, IReadOnlyDictionary<string, string>? headers = null, string? bearerToken = null,
         CancellationToken cancellationToken = default)
     {
-        var httpClient = new HttpClient();
+        HttpClient cachedHttpClient = await _httpClientCache.Get(nameof(GraphQlSchemaDownloadUtil), cancellationToken)
+                                                            .NoSync();
 
-        return DownloadInternal(httpClient, endpoint, headers, bearerToken, ownsClient: true, cancellationToken);
+        return await DownloadInternal(cachedHttpClient, endpoint, headers, bearerToken, ownsClient: false, cancellationToken)
+            .NoSync();
     }
 
     public ValueTask<string> Download(HttpClient httpClient, string endpoint, IReadOnlyDictionary<string, string>? headers = null, string? bearerToken = null,
@@ -37,7 +46,7 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
     private static async ValueTask<string> DownloadInternal(HttpClient httpClient, string endpoint, IReadOnlyDictionary<string, string>? headers,
         string? bearerToken, bool ownsClient, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(endpoint))
+        if (endpoint.IsNullOrWhiteSpace())
             throw new ArgumentException("A GraphQL endpoint is required.", nameof(endpoint));
 
         try
@@ -47,14 +56,14 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
             request.Content = new StringContent(JsonSerializer.Serialize(IntrospectionPayload.Instance), Encoding.UTF8, "application/json");
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            if (!string.IsNullOrWhiteSpace(bearerToken))
+            if (bearerToken.HasContent())
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
 
             if (headers is not null)
             {
                 foreach ((string key, string value) in headers)
                 {
-                    if (string.IsNullOrWhiteSpace(key))
+                    if (key.IsNullOrWhiteSpace())
                         continue;
 
                     if (!request.Headers.TryAddWithoutValidation(key, value))
@@ -63,13 +72,13 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
             }
 
             using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken)
-                                                                 .ConfigureAwait(false);
+                                                                 .NoSync();
             response.EnsureSuccessStatusCode();
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken)
-                                        .ConfigureAwait(false);
+                                        .NoSync();
 
-            if (string.IsNullOrWhiteSpace(json))
+            if (json.IsNullOrWhiteSpace())
                 throw new InvalidOperationException("The GraphQL endpoint returned an empty response.");
 
             ValidateIntrospectionResponse(json);
@@ -140,118 +149,4 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
 
         return builder.Length == 0 ? "Unknown GraphQL error." : builder.ToString();
     }
-
-    private sealed record IntrospectionPayload(
-        [property: JsonPropertyName("query")] string Query,
-        [property: JsonPropertyName("operationName")]
-        string OperationName)
-    {
-        public static readonly IntrospectionPayload Instance = new(IntrospectionQuery, "IntrospectionQuery");
-    }
-
-    private const string IntrospectionQuery = """
-                                              query IntrospectionQuery {
-                                                __schema {
-                                                  queryType {
-                                                    name
-                                                  }
-                                                  mutationType {
-                                                    name
-                                                  }
-                                                  subscriptionType {
-                                                    name
-                                                  }
-                                                  types {
-                                                    ...FullType
-                                                  }
-                                                  directives {
-                                                    name
-                                                    description
-                                                    isRepeatable
-                                                    locations
-                                                    args(includeDeprecated: true) {
-                                                      ...InputValue
-                                                    }
-                                                  }
-                                                }
-                                              }
-
-                                              fragment FullType on __Type {
-                                                kind
-                                                name
-                                                description
-                                                specifiedByURL
-                                                fields(includeDeprecated: true) {
-                                                  name
-                                                  description
-                                                  args(includeDeprecated: true) {
-                                                    ...InputValue
-                                                  }
-                                                  type {
-                                                    ...TypeRef
-                                                  }
-                                                  isDeprecated
-                                                  deprecationReason
-                                                }
-                                                inputFields(includeDeprecated: true) {
-                                                  ...InputValue
-                                                }
-                                                interfaces {
-                                                  ...TypeRef
-                                                }
-                                                enumValues(includeDeprecated: true) {
-                                                  name
-                                                  description
-                                                  isDeprecated
-                                                  deprecationReason
-                                                }
-                                                possibleTypes {
-                                                  ...TypeRef
-                                                }
-                                              }
-
-                                              fragment InputValue on __InputValue {
-                                                name
-                                                description
-                                                type {
-                                                  ...TypeRef
-                                                }
-                                                defaultValue
-                                                isDeprecated
-                                                deprecationReason
-                                              }
-
-                                              fragment TypeRef on __Type {
-                                                kind
-                                                name
-                                                ofType {
-                                                  kind
-                                                  name
-                                                  ofType {
-                                                    kind
-                                                    name
-                                                    ofType {
-                                                      kind
-                                                      name
-                                                      ofType {
-                                                        kind
-                                                        name
-                                                        ofType {
-                                                          kind
-                                                          name
-                                                          ofType {
-                                                            kind
-                                                            name
-                                                            ofType {
-                                                              kind
-                                                              name
-                                                            }
-                                                          }
-                                                        }
-                                                      }
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                              """;
 }

@@ -38,7 +38,7 @@ jobs:
         run: dotnet build test/Soenneker.GraphQl.Schema.Download.Tests/Soenneker.GraphQl.Schema.Download.Tests.csproj --configuration Release --no-restore --verbosity minimal
 
       - name: Test
-        run: dotnet test test/Soenneker.GraphQl.Schema.Download.Tests/Soenneker.GraphQl.Schema.Download.Tests.csproj --configuration Release --no-build --no-restore --verbosity minimal
+        run: dotnet test --project test/Soenneker.GraphQl.Schema.Download.Tests/Soenneker.GraphQl.Schema.Download.Tests.csproj --configuration Release --no-build --no-restore --verbosity minimal
 
       - name: Pack
         run: dotnet pack src/Soenneker.GraphQl.Schema.Download/Soenneker.GraphQl.Schema.Download.csproj --configuration Release --no-build --no-restore --output . --verbosity minimal

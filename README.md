@@ -10,3 +10,14 @@
 ```
 dotnet add package Soenneker.GraphQl.Schema.Download
 ```
+
+## Usage
+
+```csharp
+string schema = await graphQlSchemaDownloadUtil.Download(
+    "https://api.example.com/graphql",
+    bearerToken: authenticationToken,
+    cancellationToken: cancellationToken);
+```
+
+Pass the raw token value to `bearerToken`; the utility sends it as `Authorization: Bearer <token>` on the introspection request.

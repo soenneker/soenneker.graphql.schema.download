@@ -12,7 +12,6 @@ using Soenneker.Utils.HttpClientCache.Abstract;
 using Soenneker.Extensions.String;
 using Soenneker.Extensions.Task;
 using Soenneker.GraphQl.Schema.Download.Dtos;
-
 namespace Soenneker.GraphQl.Schema.Download;
 
 /// <inheritdoc cref="IGraphQlSchemaDownloadUtil"/>
@@ -35,6 +34,15 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
             .NoSync();
     }
 
+    /// <summary>
+    /// Downloads graph Ql Schema Download.
+    /// </summary>
+    /// <param name="httpClient">http Client used to communicate with the external service.</param>
+    /// <param name="endpoint">Service endpoint to call.</param>
+    /// <param name="headers">headers to process.</param>
+    /// <param name="bearerToken">Bearer Token for the download operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>A task whose result is the text returned by download.</returns>
     public ValueTask<string> Download(HttpClient httpClient, string endpoint, IReadOnlyDictionary<string, string>? headers = null, string? bearerToken = null,
         CancellationToken cancellationToken = default)
     {

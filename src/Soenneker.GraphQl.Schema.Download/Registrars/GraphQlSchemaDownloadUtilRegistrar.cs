@@ -6,12 +6,12 @@ using Soenneker.Utils.HttpClientCache.Registrar;
 namespace Soenneker.GraphQl.Schema.Download.Registrars;
 
 /// <summary>
-/// A GraphQL schema download utility
+/// Registers the GraphQL schema downloader and its shared HTTP client cache.
 /// </summary>
 public static class GraphQlSchemaDownloadUtilRegistrar
 {
     /// <summary>
-    /// Adds <see cref="IGraphQlSchemaDownloadUtil"/> as a singleton service. <para/>
+    /// Adds <see cref="IGraphQlSchemaDownloadUtil"/> as a singleton service.
     /// </summary>
     /// <param name="services">Service collection that receives the registration.</param>
     /// <returns>The same service collection, so additional registrations can be chained.</returns>
@@ -24,7 +24,7 @@ public static class GraphQlSchemaDownloadUtilRegistrar
     }
 
     /// <summary>
-    /// Adds <see cref="IGraphQlSchemaDownloadUtil"/> as a scoped service. <para/>
+    /// Adds <see cref="IGraphQlSchemaDownloadUtil"/> as a scoped service while retaining the HTTP client cache as a singleton.
     /// </summary>
     /// <param name="services">Service collection that receives the registration.</param>
     /// <returns>The same service collection, so additional registrations can be chained.</returns>

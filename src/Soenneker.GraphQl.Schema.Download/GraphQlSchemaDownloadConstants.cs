@@ -34,6 +34,7 @@ internal static class GraphQlSchemaDownloadConstants
                                                  name
                                                  description
                                                  specifiedByURL
+                                                 isOneOf
                                                  fields(includeDeprecated: true) {
                                                    name
                                                    description

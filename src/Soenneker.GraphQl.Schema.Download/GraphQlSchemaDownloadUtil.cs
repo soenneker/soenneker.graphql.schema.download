@@ -12,9 +12,9 @@ using Soenneker.Utils.HttpClientCache.Abstract;
 using Soenneker.Extensions.String;
 using Soenneker.Extensions.Task;
 using Soenneker.GraphQl.Schema.Download.Dtos;
+
 namespace Soenneker.GraphQl.Schema.Download;
 
-/// <inheritdoc cref="IGraphQlSchemaDownloadUtil"/>
 public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
 {
     private readonly IHttpClientCache _httpClientCache;
@@ -30,74 +30,57 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         HttpClient cachedHttpClient = await _httpClientCache.Get(nameof(GraphQlSchemaDownloadUtil), cancellationToken)
                                                             .NoSync();
 
-        return await DownloadInternal(cachedHttpClient, endpoint, headers, bearerToken, ownsClient: false, cancellationToken)
+        return await DownloadInternal(cachedHttpClient, endpoint, headers, bearerToken, cancellationToken)
             .NoSync();
     }
 
-    /// <summary>
-    /// Downloads graph Ql Schema Download.
-    /// </summary>
-    /// <param name="httpClient">http Client used to communicate with the external service.</param>
-    /// <param name="endpoint">Service endpoint to call.</param>
-    /// <param name="headers">headers to process.</param>
-    /// <param name="bearerToken">Bearer Token for the download operation.</param>
-    /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>A task whose result is the text returned by download.</returns>
     public ValueTask<string> Download(HttpClient httpClient, string endpoint, IReadOnlyDictionary<string, string>? headers = null, string? bearerToken = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
 
-        return DownloadInternal(httpClient, endpoint, headers, bearerToken, ownsClient: false, cancellationToken);
+        return DownloadInternal(httpClient, endpoint, headers, bearerToken, cancellationToken);
     }
 
     private static async ValueTask<string> DownloadInternal(HttpClient httpClient, string endpoint, IReadOnlyDictionary<string, string>? headers,
-        string? bearerToken, bool ownsClient, CancellationToken cancellationToken)
+        string? bearerToken, CancellationToken cancellationToken)
     {
         if (endpoint.IsNullOrWhiteSpace())
             throw new ArgumentException("A GraphQL endpoint is required.", nameof(endpoint));
 
-        try
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+
+        request.Content = new StringContent(JsonSerializer.Serialize(IntrospectionPayload.Instance), Encoding.UTF8, "application/json");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        if (bearerToken.HasContent())
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        if (headers is not null)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-
-            request.Content = new StringContent(JsonSerializer.Serialize(IntrospectionPayload.Instance), Encoding.UTF8, "application/json");
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            if (bearerToken.HasContent())
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-            if (headers is not null)
+            foreach ((string key, string value) in headers)
             {
-                foreach ((string key, string value) in headers)
-                {
-                    if (key.IsNullOrWhiteSpace())
-                        continue;
+                if (key.IsNullOrWhiteSpace())
+                    continue;
 
-                    if (!request.Headers.TryAddWithoutValidation(key, value))
-                        request.Content.Headers.TryAddWithoutValidation(key, value);
-                }
+                if (!request.Headers.TryAddWithoutValidation(key, value))
+                    request.Content.Headers.TryAddWithoutValidation(key, value);
             }
-
-            using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken)
-                                                                 .NoSync();
-            response.EnsureSuccessStatusCode();
-
-            string json = await response.Content.ReadAsStringAsync(cancellationToken)
-                                        .NoSync();
-
-            if (json.IsNullOrWhiteSpace())
-                throw new InvalidOperationException("The GraphQL endpoint returned an empty response.");
-
-            ValidateIntrospectionResponse(json);
-
-            return json;
         }
-        finally
-        {
-            if (ownsClient)
-                httpClient.Dispose();
-        }
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken)
+                                                             .NoSync();
+        response.EnsureSuccessStatusCode();
+
+        string json = await response.Content.ReadAsStringAsync(cancellationToken)
+                                    .NoSync();
+
+        if (json.IsNullOrWhiteSpace())
+            throw new InvalidOperationException("The GraphQL endpoint returned an empty response.");
+
+        ValidateIntrospectionResponse(json);
+
+        return json;
     }
 
     private static void ValidateIntrospectionResponse(string json)
@@ -116,15 +99,16 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
     {
         if (root.ValueKind == JsonValueKind.Object)
         {
-            if (root.TryGetProperty("data", out JsonElement data) && data.ValueKind == JsonValueKind.Object && data.TryGetProperty("__schema", out schema))
+            if (root.TryGetProperty("data", out JsonElement data) && data.ValueKind == JsonValueKind.Object && data.TryGetProperty("__schema", out schema) &&
+                IsSchema(schema))
             {
                 return true;
             }
 
-            if (root.TryGetProperty("__schema", out schema))
+            if (root.TryGetProperty("__schema", out schema) && IsSchema(schema))
                 return true;
 
-            if (root.TryGetProperty("types", out _))
+            if (IsSchema(root))
             {
                 schema = root;
                 return true;
@@ -134,6 +118,9 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         schema = default;
         return false;
     }
+
+    private static bool IsSchema(JsonElement element) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty("types", out JsonElement types) && types.ValueKind == JsonValueKind.Array;
 
     private static string GetErrorMessage(JsonElement errors)
     {

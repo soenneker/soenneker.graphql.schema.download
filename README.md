@@ -1,43 +1,61 @@
 [![](https://img.shields.io/nuget/v/soenneker.graphql.schema.download.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.graphql.schema.download/)
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.graphql.schema.download/publish-package.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.graphql.schema.download/actions/workflows/publish-package.yml)
+[![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.graphql.schema.download/build-and-test.yml?style=for-the-badge&label=build)](https://github.com/soenneker/soenneker.graphql.schema.download/actions/workflows/build-and-test.yml)
+[![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.graphql.schema.download/codeql.yml?style=for-the-badge&label=codeql)](https://github.com/soenneker/soenneker.graphql.schema.download/actions/workflows/codeql.yml)
 [![](https://img.shields.io/nuget/dt/soenneker.graphql.schema.download.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.graphql.schema.download/)
 
 # Soenneker.GraphQl.Schema.Download
 
-A GraphQL schema download utility.
+Downloads a GraphQL server's introspection response and verifies that it contains a usable schema payload. The returned JSON can be archived as-is or passed to an introspection-to-SDL converter.
 
-## Install
+## Installation
 
 ```bash
 dotnet add package Soenneker.GraphQl.Schema.Download
 ```
 
-## Quick start
+## Registration
 
 ```csharp
-using Soenneker.GraphQl.Schema.Download.Registrars;
 using Microsoft.Extensions.DependencyInjection;
+using Soenneker.GraphQl.Schema.Download.Abstract;
+using Soenneker.GraphQl.Schema.Download.Registrars;
 
-var services = new ServiceCollection();
-var result = services.AddGraphQlSchemaDownloadUtilAsSingleton();
+services.AddGraphQlSchemaDownloadUtilAsScoped();
+
+IGraphQlSchemaDownloadUtil downloader =
+    serviceProvider.GetRequiredService<IGraphQlSchemaDownloadUtil>();
 ```
 
-Adds `IGraphQlSchemaDownloadUtil` as a singleton service.
+Scoped registration keeps the utility disposable with its consuming scope while the underlying HTTP client cache remains a singleton. Singleton utility registration is also available with `AddGraphQlSchemaDownloadUtilAsSingleton()`.
 
-## What you get
+## Download a schema
 
-- `IGraphQlSchemaDownloadUtil` — A GraphQL schema download utility.
-- `GraphQlSchemaDownloadUtilRegistrar` — A GraphQL schema download utility.
+```csharp
+string introspectionJson = await downloader.Download(
+    "https://api.example.com/graphql",
+    bearerToken: accessToken,
+    cancellationToken: cancellationToken);
 
-## API at a glance
+await File.WriteAllTextAsync("introspection.json", introspectionJson, cancellationToken);
+```
 
-| API | What it does | Result / important behavior |
-| --- | --- | --- |
-| `IGraphQlSchemaDownloadUtil.Download(endpoint, headers, bearerToken, cancellationToken)` | Downloads the raw GraphQL introspection JSON payload from the specified endpoint. | A task whose result is the text returned by download. |
-| `IGraphQlSchemaDownloadUtil.Download(httpClient, endpoint, headers, bearerToken, cancellationToken)` | Downloads the raw GraphQL introspection JSON payload by using the supplied `System.Net.Http.HttpClient`. | A task whose result is the text returned by download. |
-| `GraphQlSchemaDownloadUtilRegistrar.AddGraphQlSchemaDownloadUtilAsSingleton(services)` | Adds `IGraphQlSchemaDownloadUtil` as a singleton service. | The same service collection, so additional registrations can be chained. |
-| `GraphQlSchemaDownloadUtilRegistrar.AddGraphQlSchemaDownloadUtilAsScoped(services)` | Adds `IGraphQlSchemaDownloadUtil` as a scoped service. | The same service collection, so additional registrations can be chained. |
+Additional request headers can be supplied when an API uses tenant, version, or API-key headers:
 
-## Practical notes
+```csharp
+var headers = new Dictionary<string, string>
+{
+    ["X-Api-Key"] = apiKey,
+    ["X-Tenant-Id"] = tenantId
+};
 
-- Cancellation stops pending work; it does not undo work that has already completed.
+string introspectionJson = await downloader.Download(endpoint, headers, cancellationToken: cancellationToken);
+```
+
+To use an already configured client, pass it to the overload. The client remains owned by the caller and is not disposed by the downloader:
+
+```csharp
+string introspectionJson = await downloader.Download(httpClient, endpoint, cancellationToken: cancellationToken);
+```
+
+The request is an HTTP `POST` with the standard introspection query and an `application/json` body. Non-success HTTP responses throw `HttpRequestException`; malformed JSON throws `JsonException`; GraphQL errors, empty responses, and responses without a schema `types` array throw `InvalidOperationException`.

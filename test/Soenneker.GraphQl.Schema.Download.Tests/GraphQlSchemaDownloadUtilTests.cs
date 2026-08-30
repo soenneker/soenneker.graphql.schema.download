@@ -36,7 +36,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("{\"data\":{\"__schema\":{}}}", Encoding.UTF8, "application/json")
+                Content = new StringContent("{\"data\":{\"__schema\":{\"types\":[]}}}", Encoding.UTF8, "application/json")
             };
         });
         using var httpClient = new HttpClient(handler);
@@ -46,6 +46,20 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
         await Assert.That(authorization).IsNotNull();
         await Assert.That(authorization!.Scheme).IsEqualTo("Bearer");
         await Assert.That(authorization.Parameter).IsEqualTo("authentication-token");
+    }
+
+    [Test]
+    public async Task Download_should_reject_a_null_schema()
+    {
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"data\":{\"__schema\":null}}", Encoding.UTF8, "application/json")
+        });
+        using var httpClient = new HttpClient(handler);
+
+        Func<Task> act = async () => await _util.Download(httpClient, "https://api.example.com/graphql");
+
+        await Assert.That(act).Throws<InvalidOperationException>();
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler

@@ -7,11 +7,13 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Soenneker.Extensions.ValueTask;
+using Soenneker.Extensions.Object;
 using Soenneker.GraphQl.Schema.Download.Abstract;
 using Soenneker.Utils.HttpClientCache.Abstract;
 using Soenneker.Extensions.String;
 using Soenneker.Extensions.Task;
 using Soenneker.GraphQl.Schema.Download.Dtos;
+using Soenneker.Utils.PooledStringBuilders;
 
 namespace Soenneker.GraphQl.Schema.Download;
 
@@ -50,7 +52,7 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
 
-        request.Content = new StringContent(JsonSerializer.Serialize(IntrospectionPayload.Instance), Encoding.UTF8, "application/json");
+        request.Content = IntrospectionPayload.Instance.ToHttpContent();
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         if (bearerToken.HasContent())
@@ -124,7 +126,7 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
 
     private static string GetErrorMessage(JsonElement errors)
     {
-        var builder = new StringBuilder();
+        using var builder = new PooledStringBuilder();
 
         foreach (JsonElement error in errors.EnumerateArray())
         {

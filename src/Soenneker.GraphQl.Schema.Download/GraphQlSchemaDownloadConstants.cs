@@ -108,4 +108,7 @@ internal static class GraphQlSchemaDownloadConstants
                                                  }
                                                }
                                                """;
+
+    internal static readonly string LegacyIntrospectionQuery = IntrospectionQuery.Replace("  isOneOf\r\n", "")
+                                                                                     .Replace("  isOneOf\n", "");
 }

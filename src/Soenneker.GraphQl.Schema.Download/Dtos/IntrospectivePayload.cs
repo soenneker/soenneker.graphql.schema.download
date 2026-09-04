@@ -8,4 +8,5 @@ internal sealed record IntrospectionPayload(
     string OperationName)
 {
     public static readonly IntrospectionPayload Instance = new(GraphQlSchemaDownloadConstants.IntrospectionQuery, "IntrospectionQuery");
+    public static readonly IntrospectionPayload LegacyInstance = new(GraphQlSchemaDownloadConstants.LegacyIntrospectionQuery, "IntrospectionQuery");
 }

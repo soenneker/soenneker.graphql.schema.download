@@ -62,6 +62,38 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
         await Assert.That(act).Throws<InvalidOperationException>();
     }
 
+    [Test]
+    public async Task Download_should_retry_without_isOneOf_when_endpoint_does_not_support_it()
+    {
+        var requestCount = 0;
+        var firstRequestIncludedIsOneOf = false;
+        var secondRequestIncludedIsOneOf = true;
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            requestCount++;
+            string requestJson = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            if (requestCount == 1)
+                firstRequestIncludedIsOneOf = requestJson.Contains("isOneOf", StringComparison.Ordinal);
+            else
+                secondRequestIncludedIsOneOf = requestJson.Contains("isOneOf", StringComparison.Ordinal);
+
+            string content = requestCount == 1
+                ? "{\"errors\":[{\"message\":\"Cannot query field \\\"isOneOf\\\" on type \\\"__Type\\\".\"}]}"
+                : "{\"data\":{\"__schema\":{\"types\":[]}}}";
+
+            return new HttpResponseMessage(HttpStatusCode.OK) {Content = new StringContent(content, Encoding.UTF8, "application/json")};
+        });
+        using var httpClient = new HttpClient(handler);
+
+        string result = await _util.Download(httpClient, "https://api.example.com/graphql");
+
+        await Assert.That(requestCount).IsEqualTo(2);
+        await Assert.That(firstRequestIncludedIsOneOf).IsTrue();
+        await Assert.That(secondRequestIncludedIsOneOf).IsFalse();
+        await Assert.That(result).Contains("__schema");
+    }
+
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

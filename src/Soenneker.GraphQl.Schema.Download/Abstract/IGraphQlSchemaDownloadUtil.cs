@@ -10,7 +10,8 @@ namespace Soenneker.GraphQl.Schema.Download.Abstract;
 public interface IGraphQlSchemaDownloadUtil
 {
     /// <summary>
-    /// Posts an introspection query to the specified endpoint and returns its raw JSON response.
+    /// Posts an introspection query to the specified endpoint and returns its raw JSON response. Automatically retries with a legacy query when the endpoint
+    /// does not support <c>__Type.isOneOf</c>.
     /// </summary>
     /// <param name="endpoint">The GraphQL HTTP endpoint.</param>
     /// <param name="headers">Optional request or content headers.</param>
@@ -21,7 +22,8 @@ public interface IGraphQlSchemaDownloadUtil
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Posts an introspection query with the supplied <see cref="System.Net.Http.HttpClient"/> and returns its raw JSON response.
+    /// Posts an introspection query with the supplied <see cref="System.Net.Http.HttpClient"/> and returns its raw JSON response. Automatically retries with a
+    /// legacy query when the endpoint does not support <c>__Type.isOneOf</c>.
     /// </summary>
     /// <param name="httpClient">The caller-owned client used to send the request. It is not disposed by this method.</param>
     /// <param name="endpoint">The GraphQL HTTP endpoint.</param>

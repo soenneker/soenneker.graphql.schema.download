@@ -51,9 +51,26 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         if (endpoint.IsNullOrWhiteSpace())
             throw new ArgumentException("A GraphQL endpoint is required.", nameof(endpoint));
 
+        string json = await SendIntrospectionRequest(httpClient, endpoint, headers, bearerToken, IntrospectionPayload.Instance, cancellationToken)
+            .NoSync();
+
+        if (IsUnsupportedIsOneOfResponse(json))
+        {
+            json = await SendIntrospectionRequest(httpClient, endpoint, headers, bearerToken, IntrospectionPayload.LegacyInstance, cancellationToken)
+                .NoSync();
+        }
+
+        ValidateIntrospectionResponse(json);
+
+        return json;
+    }
+
+    private static async ValueTask<string> SendIntrospectionRequest(HttpClient httpClient, string endpoint, IReadOnlyDictionary<string, string>? headers,
+        string? bearerToken, IntrospectionPayload payload, CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
 
-        request.Content = IntrospectionPayload.Instance.ToHttpContent();
+        request.Content = payload.ToHttpContent();
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         if (bearerToken.HasContent())
@@ -81,9 +98,35 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         if (json.IsNullOrWhiteSpace())
             throw new InvalidOperationException("The GraphQL endpoint returned an empty response.");
 
-        ValidateIntrospectionResponse(json);
-
         return json;
+    }
+
+    private static bool IsUnsupportedIsOneOfResponse(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
+
+        if (!root.TryGetProperty("errors", out JsonElement errors) || errors.ValueKind != JsonValueKind.Array)
+            return false;
+
+        foreach (JsonElement error in errors.EnumerateArray())
+        {
+            if (error.ValueKind != JsonValueKind.Object || !error.TryGetProperty("message", out JsonElement message) ||
+                message.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            string? value = message.GetString();
+
+            if (value is not null && value.Contains("Cannot query field", StringComparison.OrdinalIgnoreCase) &&
+                value.Contains("isOneOf", StringComparison.OrdinalIgnoreCase) && value.Contains("__Type", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void ValidateIntrospectionResponse(string json)

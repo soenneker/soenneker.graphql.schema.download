@@ -17,6 +17,7 @@ using Soenneker.Utils.PooledStringBuilders;
 
 namespace Soenneker.GraphQl.Schema.Download;
 
+/// <inheritdoc cref="IGraphQlSchemaDownloadUtil" />
 public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
 {
     private readonly IHttpClientCache _httpClientCache;

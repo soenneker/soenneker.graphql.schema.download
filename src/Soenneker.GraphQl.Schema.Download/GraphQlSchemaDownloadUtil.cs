@@ -54,13 +54,20 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         string json = await SendIntrospectionRequest(httpClient, endpoint, headers, bearerToken, IntrospectionPayload.Instance, cancellationToken)
             .NoSync();
 
-        if (IsUnsupportedIsOneOfResponse(json))
+        using (JsonDocument document = JsonDocument.Parse(json))
         {
-            json = await SendIntrospectionRequest(httpClient, endpoint, headers, bearerToken, IntrospectionPayload.LegacyInstance, cancellationToken)
-                .NoSync();
+            if (!IsUnsupportedIsOneOfResponse(document.RootElement))
+            {
+                ValidateIntrospectionResponse(document.RootElement);
+                return json;
+            }
         }
 
-        ValidateIntrospectionResponse(json);
+        json = await SendIntrospectionRequest(httpClient, endpoint, headers, bearerToken, IntrospectionPayload.LegacyInstance, cancellationToken)
+            .NoSync();
+
+        using JsonDocument legacyDocument = JsonDocument.Parse(json);
+        ValidateIntrospectionResponse(legacyDocument.RootElement);
 
         return json;
     }
@@ -101,11 +108,8 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         return json;
     }
 
-    private static bool IsUnsupportedIsOneOfResponse(string json)
+    private static bool IsUnsupportedIsOneOfResponse(JsonElement root)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
-        JsonElement root = document.RootElement;
-
         if (!root.TryGetProperty("errors", out JsonElement errors) || errors.ValueKind != JsonValueKind.Array)
             return false;
 
@@ -129,11 +133,8 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
         return false;
     }
 
-    private static void ValidateIntrospectionResponse(string json)
+    private static void ValidateIntrospectionResponse(JsonElement root)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
-        JsonElement root = document.RootElement;
-
         if (root.TryGetProperty("errors", out JsonElement errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
             throw new InvalidOperationException($"The GraphQL endpoint returned introspection errors: {GetErrorMessage(errors)}");
 

@@ -77,7 +77,7 @@ public sealed class GraphQlSchemaDownloadUtil : IGraphQlSchemaDownloadUtil
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
 
-        request.Content = payload.ToHttpContent();
+        request.Content = payload.ToHttpContent(LibraryJsonContext.Default.IntrospectionPayload);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         if (bearerToken.HasContent())

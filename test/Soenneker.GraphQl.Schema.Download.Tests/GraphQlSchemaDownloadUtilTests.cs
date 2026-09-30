@@ -27,7 +27,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
     }
 
     [Test]
-    public async Task Download_should_send_bearer_token()
+    public async ValueTask Download_should_send_bearer_token()
     {
         AuthenticationHeaderValue? authorization = null;
         var handler = new StubHttpMessageHandler(request =>
@@ -49,7 +49,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
     }
 
     [Test]
-    public async Task Download_should_reject_a_null_schema()
+    public async ValueTask Download_should_reject_a_null_schema()
     {
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -63,7 +63,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
     }
 
     [Test]
-    public async Task Download_should_retry_without_isOneOf_when_endpoint_does_not_support_it()
+    public async ValueTask Download_should_retry_without_isOneOf_when_endpoint_does_not_support_it()
     {
         var requestCount = 0;
         var firstRequestIncludedIsOneOf = false;

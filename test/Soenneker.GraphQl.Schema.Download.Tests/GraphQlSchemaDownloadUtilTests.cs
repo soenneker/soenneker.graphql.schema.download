@@ -27,7 +27,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask Download_should_send_bearer_token()
+    public async ValueTask Download_should_send_bearer_token(CancellationToken cancellationToken)
     {
         AuthenticationHeaderValue? authorization = null;
         var handler = new StubHttpMessageHandler(request =>
@@ -41,7 +41,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
         });
         using var httpClient = new HttpClient(handler);
 
-        await _util.Download(httpClient, "https://api.example.com/graphql", bearerToken: "authentication-token");
+        await _util.Download(httpClient, "https://api.example.com/graphql", bearerToken: "authentication-token", cancellationToken: cancellationToken);
 
         await Assert.That(authorization).IsNotNull();
         await Assert.That(authorization!.Scheme).IsEqualTo("Bearer");
@@ -49,7 +49,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask Download_should_reject_a_null_schema()
+    public async ValueTask Download_should_reject_a_null_schema(CancellationToken cancellationToken)
     {
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -57,13 +57,13 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
         });
         using var httpClient = new HttpClient(handler);
 
-        Func<Task> act = async () => await _util.Download(httpClient, "https://api.example.com/graphql");
+        Func<Task> act = async () => await _util.Download(httpClient, "https://api.example.com/graphql", cancellationToken: cancellationToken);
 
         await Assert.That(act).Throws<InvalidOperationException>();
     }
 
     [Test]
-    public async ValueTask Download_should_retry_without_isOneOf_when_endpoint_does_not_support_it()
+    public async ValueTask Download_should_retry_without_isOneOf_when_endpoint_does_not_support_it(CancellationToken cancellationToken)
     {
         var requestCount = 0;
         var firstRequestIncludedIsOneOf = false;
@@ -71,7 +71,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
         var handler = new StubHttpMessageHandler(request =>
         {
             requestCount++;
-            string requestJson = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            string requestJson = request.Content!.ReadAsStringAsync(cancellationToken: cancellationToken).GetAwaiter().GetResult();
 
             if (requestCount == 1)
                 firstRequestIncludedIsOneOf = requestJson.Contains("isOneOf", StringComparison.Ordinal);
@@ -86,7 +86,7 @@ public sealed class GraphQlSchemaDownloadUtilTests : HostedUnitTest
         });
         using var httpClient = new HttpClient(handler);
 
-        string result = await _util.Download(httpClient, "https://api.example.com/graphql");
+        string result = await _util.Download(httpClient, "https://api.example.com/graphql", cancellationToken: cancellationToken);
 
         await Assert.That(requestCount).IsEqualTo(2);
         await Assert.That(firstRequestIncludedIsOneOf).IsTrue();
